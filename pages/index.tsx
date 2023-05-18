@@ -1,25 +1,42 @@
-import React, { useState, useEffect } from 'react';
-import { onEntryChange } from '../contentstack-sdk';
-import RenderComponents from '../components/render-components';
-import { getPageRes } from '../helper';
-import Skeleton from 'react-loading-skeleton';
-import { Props, Context } from "../typescript/pages";
+import { Context, Props } from "../typescript/pages";
+import React, { useEffect, useState } from "react";
+import { onEntryChange, stack } from "../contentstack-sdk";
+
+import ReleasePreview from "@contentstack/delivery-plugin-release-preview";
+import RenderComponents from "../components/render-components";
+import Skeleton from "react-loading-skeleton";
+import { getPageRes } from "../helper";
+import { getReleasePreviewSession } from "../contentstack-sdk/release-preview/release-preview-plugin";
+import { useRouter } from "next/router";
 
 export default function Home(props: Props) {
-
   const { page, entryUrl } = props;
 
   const [getEntry, setEntry] = useState(page);
-
+  const [isReleaseLoading, setReleaseLoading] = useState(true);
+  const router = useRouter();
   async function fetchData() {
     try {
       const entryRes = await getPageRes(entryUrl);
-      if (!entryRes) throw new Error('Status code 404');
+      if (!entryRes) throw new Error("Status code 404");
       setEntry(entryRes);
     } catch (error) {
       console.error(error);
     }
   }
+
+  useEffect(() => {
+    (async () => {
+      setReleaseLoading(true);
+      const release_preview_options = getReleasePreviewSession(router.query);
+      if (release_preview_options && release_preview_options.enabled) {
+        console.log("Release preview options", release_preview_options);
+        await ReleasePreview.init(stack, release_preview_options);
+        fetchData();
+      }
+      setReleaseLoading(false);
+    })();
+  }, []);
 
   useEffect(() => {
     onEntryChange(() => fetchData());
@@ -28,7 +45,7 @@ export default function Home(props: Props) {
   return getEntry ? (
     <RenderComponents
       pageComponents={getEntry.page_components}
-      contentTypeUid='page'
+      contentTypeUid="page"
       entryUid={getEntry.uid}
       locale={getEntry.locale}
     />
@@ -39,10 +56,19 @@ export default function Home(props: Props) {
 
 export async function getServerSideProps(context: Context) {
   try {
-    const entryRes = await getPageRes(context.resolvedUrl);
+    // console.log("CONTEXT", context);
+    let url = context.resolvedUrl;
+    if (url.includes("?")) {
+      url = url.split("?")[0];
+    }
+    if (!url.includes("/")) {
+      url = `/${url}`;
+    }
+
+    const entryRes = await getPageRes(url);
     return {
       props: {
-        entryUrl: context.resolvedUrl,
+        entryUrl: url,
         page: entryRes,
       },
     };

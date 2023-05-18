@@ -1,35 +1,34 @@
-import * as contentstack from 'contentstack';
-import * as Utils from '@contentstack/utils';
+import * as Utils from "@contentstack/utils";
+import * as contentstack from "contentstack";
 
-import ContentstackLivePreview from '@contentstack/live-preview-utils';
-import getConfig from 'next/config';
+import ContentstackLivePreview from "@contentstack/live-preview-utils";
+import { ReleasePreviewPlugin } from "./release-preview/release-preview-plugin";
+import getConfig from "next/config";
 
 const { publicRuntimeConfig } = getConfig();
-const envConfig = process.env.CONTENTSTACK_API_KEY
-  ? process.env
-  : publicRuntimeConfig;
+const envConfig = process.env.CONTENTSTACK_API_KEY ? process.env : publicRuntimeConfig;
 
-const Stack = contentstack.Stack({
-  api_key: envConfig.CONTENTSTACK_API_KEY
-    ? envConfig.CONTENTSTACK_API_KEY
-    : envConfig.NEXT_PUBLIC_CONTENTSTACK_API_KEY,
+export const stack = contentstack.Stack({
+  api_key: envConfig.CONTENTSTACK_API_KEY ? envConfig.CONTENTSTACK_API_KEY : envConfig.NEXT_PUBLIC_CONTENTSTACK_API_KEY,
   delivery_token: envConfig.CONTENTSTACK_DELIVERY_TOKEN,
-  branch: envConfig.CONTENTSTACK_BRANCH ? envConfig.CONTENTSTACK_BRANCH : 'main',
+  branch: envConfig.CONTENTSTACK_BRANCH ? envConfig.CONTENTSTACK_BRANCH : "main",
   environment: envConfig.CONTENTSTACK_ENVIRONMENT,
-  region: envConfig.CONTENTSTACK_REGION ? envConfig.CONTENTSTACK_REGION : 'us',
+  region: envConfig.CONTENTSTACK_REGION ? envConfig.CONTENTSTACK_REGION : "us",
   live_preview: {
     enable: true,
     management_token: envConfig.CONTENTSTACK_MANAGEMENT_TOKEN,
     host: envConfig.CONTENTSTACK_API_HOST,
   },
+  plugins: [new ReleasePreviewPlugin()],
 });
 
-if (envConfig.CONTENTSTACK_API_HOST) {
-  Stack.setHost(envConfig.CONTENTSTACK_API_HOST);
-}
+// if (envConfig.CONTENTSTACK_API_HOST) {
+//   stack.setHost(envConfig.CONTENTSTACK_API_HOST);
+// }
 
+// console.log("ENVIRONMENT", envConfig);
 ContentstackLivePreview.init({
-  stackSdk: Stack,
+  stackSdk: stack,
   clientUrlParams: {
     host: envConfig.CONTENTSTACK_APP_HOST,
   },
@@ -42,7 +41,7 @@ const renderOption = {
   span: (node, next) => next(node.children),
 };
 
-export default {
+export const api = {
   /**
    *
    * fetches all the entries from specific content-type
@@ -53,7 +52,7 @@ export default {
    */
   getEntry({ contentTypeUid, referenceFieldPath, jsonRtePath }) {
     return new Promise((resolve, reject) => {
-      const query = Stack.ContentType(contentTypeUid).Query();
+      const query = stack.ContentType(contentTypeUid).Query();
       if (referenceFieldPath) query.includeReference(referenceFieldPath);
       query
         .includeOwner()
@@ -61,8 +60,8 @@ export default {
         .find()
         .then(
           (result) => {
-            jsonRtePath
-              && Utils.jsonToHTML({
+            jsonRtePath &&
+              Utils.jsonToHTML({
                 entry: result,
                 paths: jsonRtePath,
                 renderOption,
@@ -71,7 +70,7 @@ export default {
           },
           (error) => {
             reject(error);
-          },
+          }
         );
     });
   },
@@ -85,18 +84,16 @@ export default {
    * @param {* Json RTE path} jsonRtePath
    * @returns
    */
-  getEntryByUrl({
-    contentTypeUid, entryUrl, referenceFieldPath, jsonRtePath,
-  }) {
+  getEntryByUrl({ contentTypeUid, entryUrl, referenceFieldPath, jsonRtePath }) {
     return new Promise((resolve, reject) => {
-      const blogQuery = Stack.ContentType(contentTypeUid).Query();
+      const blogQuery = stack.ContentType(contentTypeUid).Query();
       if (referenceFieldPath) blogQuery.includeReference(referenceFieldPath);
       blogQuery.includeOwner().toJSON();
-      const data = blogQuery.where('url', `${entryUrl}`).find();
+      const data = blogQuery.where("url", `${entryUrl}`).find();
       data.then(
         (result) => {
-          jsonRtePath
-            && Utils.jsonToHTML({
+          jsonRtePath &&
+            Utils.jsonToHTML({
               entry: result,
               paths: jsonRtePath,
               renderOption,
@@ -106,8 +103,10 @@ export default {
         (error) => {
           console.error(error);
           reject(error);
-        },
+        }
       );
     });
   },
 };
+
+export default api;
